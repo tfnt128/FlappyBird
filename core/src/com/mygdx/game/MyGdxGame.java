@@ -23,6 +23,7 @@ import java.util.Random;
 public class MyGdxGame extends ApplicationAdapter {
 	//Declaração das variáveis
 	SpriteBatch batch;
+	Texture logo;
 	Texture[] passaros;
 	Texture fundo;
 	Texture canoBaixo;
@@ -82,10 +83,11 @@ public class MyGdxGame extends ApplicationAdapter {
 	private void iniciarTexturas(){
 		// Inicializa as texturas pelo internal path
 		passaros = new Texture[3];
-		passaros[0] = new Texture("passaro1.png");
-		passaros[1] = new Texture("passaro2.png");
-		passaros[2] = new Texture("passaro3.png");
+		passaros[0] = new Texture("monster1.png");
+		passaros[1] = new Texture("monster2.png");
+		passaros[2] = new Texture("monster3.png");
 
+		logo = new Texture("logo.png");
 		fundo = new Texture("fundo.png");
 		canoBaixo = new Texture("cano_baixo_maior.png");
 		canoTopo = new Texture("cano_topo_maior.png");
@@ -234,8 +236,15 @@ public class MyGdxGame extends ApplicationAdapter {
 				alturaDispositivo/2 - canoBaixo.getHeight() - espacoEntreCanos/2 + posicaoCanoVertical);
 		batch.draw(canoTopo, posicaoCanoHorizontal,
 				alturaDispositivo/2 + espacoEntreCanos/2 + posicaoCanoVertical);
-		textoPontuacao.draw(batch, String.valueOf(pontos), larguraDispositivo/2,
-				alturaDispositivo - 110);
+		if ((estadoJogo == 0)){
+			batch.draw(logo, 35, 1000);
+		}
+		else {
+			textoPontuacao.draw(batch, String.valueOf(pontos), larguraDispositivo/2 - 35,
+					alturaDispositivo - 80);
+		}
+
+
 
 		// Se o estado do jogo for 2 (game over), desenha as texturas de game over e pontuação recorde
 		if(estadoJogo == 2){
