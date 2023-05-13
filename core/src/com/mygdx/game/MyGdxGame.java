@@ -1,6 +1,6 @@
 package com.mygdx.game;
-
 import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.audio.Sound;
@@ -17,265 +17,338 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-
 import java.util.Random;
-
-public class MyGdxGame extends ApplicationAdapter {
-	//Declaração das variáveis
+import com.mygdx.game.SplashScreen.SplashScreenListener;
+// Custom game.
+public class MyGdxGame extends Game {
+	//Variáveis do jogo.
 	SpriteBatch batch;
-	Texture logo;
-	Texture[] passaros;
-	Texture fundo;
-	Texture canoBaixo;
-	Texture canoTopo;
-	Texture gameOver;
+	//Animações bird.
+	Texture[] birdArray;
+	//Background.
+	Texture backgroundTexture;
+	Texture pipeDownTexture;
+
+	Texture pipeTopTexture;
+	Texture gameOverPanelTexture;
+
+	Texture startLogo;
+	Texture startText;
+
+	Texture[] coin;
+	Texture coinCurrent;
 
 	ShapeRenderer shapeRenderer;
-	Circle circuloPassaro;
-	Rectangle retanguloCanoTopo;
-	Rectangle retanguloCanoBaixo;
+	//Collider.
+	Circle birdCircleCollider;
+	Circle coinCircleCollider;
+	Rectangle rectanglePipeTopCollider;
+	Rectangle rectanglePipeDownCollider;
 
-	float larguraDispositivo;
-	float alturaDispositivo;
-	float variacao = 0;
-	float gravidade = 2;
-	float posicaoInicialVerticalPassaro;
-	float posicaoCanoHorizontal;
-	float posicaoCanoVertical;
-	float espacoEntreCanos;
+	float deviceWidth;
+	float deviceHeight;
+	float variation = 0;
+	float gravity = 2;
+	float birdInitialVerticalPosition;
+	float positionPipeHorizontal;
+
+	float positionCoinHorizontal;
+	float positionPipeVertical;
+
+	float positionCoinVertical;
+	float spaceBetweenPipes;
 	Random random;
-	int pontos = 0;
-	int maiorPontuacao = 0;
-	boolean passouCano = false;
-	int estadoJogo = 0;
-	float posicaoPassaroHorizontal;
-	BitmapFont textoPontuacao;
-	BitmapFont textoReiniciar;
-	BitmapFont textoMaiorPontuacao;
+	int points = 0;
+	int maxScore = 0;
+	boolean pipePassed = false;
+	int gameState = 0;
+	float positionBirdHorizontal;
+	BitmapFont scoreText;
+	BitmapFont restartText;
+	BitmapFont bestScoreText;
+	//Sounds.
+	Sound flyingSound;
+	Sound collisionSound;
+	Sound scoreSound;
 
-	Sound somVoando;
-	Sound somColisao;
-	Sound somPontuacao;
+	Sound coinSound;
 
-	Preferences preferencias;
+	double randomNum;
+	int coinIndex;
+
+	Preferences preferences;
 
 	OrthographicCamera camera;
 	Viewport viewport;
 	final float VIRTUAL_WIDTH = 720;
 	final float VIRTUAL_HEIGHT = 1280;
 
+	//Inicia texturas e objetos da cena.
+
+	private SplashScreen splashScreen;
+	private GameScreen gameScreen;
+	private boolean splashScreenFinished = false;
+
 	@Override
-	public void create () {
-		iniciarTexturas(); // Inicializa as texturas do jogo
-		iniciarObjetos(); // Inicializa os objetos do jogo
+	public void create() {
+		gameScreen = new GameScreen(this);
+		splashScreen = new SplashScreen(this, gameScreen);
+
+		//showSplashScreen();
+		startTextures();
+		startObjects();
+		randomNum = Math.random();
+		if (randomNum < 0.2) { // 20% de chance para o índice 0
+			coinIndex = 0;
+		} else {
+			coinIndex = 1;
+		}
 	}
 
+	public void showSplashScreen() {
+		setScreen(splashScreen);
+		splashScreen.setListener(new SplashScreenListener() {
+			@Override
+			public void onSplashScreenFinished() {
+				splashScreenFinished = true;
+				startGame();
+			}
+		});
+	}
+
+
+	public void onSplashScreenFinished() {
+		splashScreenFinished = true;
+		startGame();
+	}
+	public void startGame() {
+		setScreen(gameScreen);
+	}
+
+
+	//Verifica estado do jogo, pontos e crias as texturas + colliders.
 	@Override
 	public void render () {
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
-		verificarEstadoJogo();
-		validarPontos();
-		desenharTexturas();
-		detectarColisoes();
+		verifyGameState();
+		validatePoints();
+		drawTextures();
+		detectCollisions();
 	}
-
-	private void iniciarTexturas(){
-		// Inicializa as texturas pelo internal path
-		passaros = new Texture[3];
-		passaros[0] = new Texture("monster1.png");
-		passaros[1] = new Texture("monster2.png");
-		passaros[2] = new Texture("monster3.png");
-
-		logo = new Texture("logo.png");
-		fundo = new Texture("fundo.png");
-		canoBaixo = new Texture("cano_baixo_maior.png");
-		canoTopo = new Texture("cano_topo_maior.png");
-		gameOver = new Texture("game_over.png");
+	//Método para iniciar as texturas (sprites do player, fundo canos e tela de gameover).
+	private void startTextures(){
+		birdArray = new Texture[3];
+		birdArray[0] = new Texture("monster1.png");
+		birdArray[1] = new Texture("monster2.png");
+		birdArray[2] = new Texture("monster3.png");
+		startLogo = new Texture("logo.png");
+		startText = new Texture("inicial.png");
+		backgroundTexture = new Texture("fundo.png");
+		pipeDownTexture = new Texture("cano_baixo_maior.png");
+		pipeTopTexture = new Texture("cano_topo_maior.png");
+		gameOverPanelTexture = new Texture("game_over.png");
+		coin = new Texture[2];
+		coin[0] = new Texture("coingold.png");
+		coin[1] = new Texture("coinsilver.png");
 	}
-
-	private void iniciarObjetos(){
+	//Instancia os canos, nas devidas posições + espaço entre eles + player
+	// + sounds fundo etc.
+	private void startObjects(){
 		batch = new SpriteBatch();
 		random = new Random();
 
-		larguraDispositivo = VIRTUAL_WIDTH; // Define a largura do dispositivo como a largura virtual
-		alturaDispositivo = VIRTUAL_HEIGHT;
-		posicaoInicialVerticalPassaro = alturaDispositivo/2;
-		posicaoCanoHorizontal = larguraDispositivo;
-		espacoEntreCanos = 350;
+		deviceWidth = VIRTUAL_WIDTH;
+		deviceHeight = VIRTUAL_HEIGHT;
+		birdInitialVerticalPosition = deviceHeight/2;
+		positionCoinVertical = deviceHeight/2;
+		positionCoinHorizontal = deviceWidth;
+		positionPipeHorizontal = deviceWidth;
+		spaceBetweenPipes = 350;
 
-		textoPontuacao = new BitmapFont();
-		// Configurações da fonte da pontuação
-		textoPontuacao.setColor(Color.WHITE);
-		textoPontuacao.getData().setScale(10);
+		scoreText = new BitmapFont();
+		scoreText.setColor(Color.WHITE);
+		scoreText.getData().setScale(10);
 
-		textoReiniciar = new BitmapFont();
-		// Configurações da fonte do texto de reinício
-		textoReiniciar.setColor(Color.GREEN);
-		textoReiniciar.getData().setScale(2);
+		restartText = new BitmapFont();
+		restartText.setColor(Color.GREEN);
+		restartText.getData().setScale(2);
 
-		textoMaiorPontuacao = new BitmapFont();
-		// Configurações da fonte da maior pontuação
-		textoMaiorPontuacao.setColor(Color.RED);
-		textoMaiorPontuacao.getData().setScale(2);
+		bestScoreText = new BitmapFont();
+		bestScoreText.setColor(Color.RED);
+		bestScoreText.getData().setScale(2);
 
-		shapeRenderer = new ShapeRenderer(); // Inicializa um objeto para renderização de formas geométricas
-		circuloPassaro = new Circle(); // Inicializa um círculo para representar o pássaro
-		retanguloCanoBaixo = new Rectangle(); // Inicializa um retângulo para representar o cano inferior
-		retanguloCanoTopo = new Rectangle(); // Inicializa um retângulo para representar o cano superior
+		shapeRenderer = new ShapeRenderer();
+		birdCircleCollider = new Circle();
+		coinCircleCollider = new Circle();
+		rectanglePipeDownCollider = new Rectangle();
+		rectanglePipeTopCollider = new Rectangle();
 
-		// Carrega os sons do jogo pelo internal path
-		somVoando = Gdx.audio.newSound(Gdx.files.internal("som_asa.wav"));
-		somColisao = Gdx.audio.newSound(Gdx.files.internal("som_batida.wav"));
-		somPontuacao = Gdx.audio.newSound(Gdx.files.internal("som_pontos.wav"));
+		flyingSound = Gdx.audio.newSound(Gdx.files.internal("som_asa.wav"));
+		collisionSound = Gdx.audio.newSound(Gdx.files.internal("som_batida.wav"));
+		scoreSound = Gdx.audio.newSound(Gdx.files.internal("som_pontos.wav"));
+		coinSound = Gdx.audio.newSound(Gdx.files.internal("som_batida.wav"));
 
-		preferencias = Gdx.app.getPreferences("flappyBird"); // Inicializa um objeto de preferências para armazenar dados do jogo
-		maiorPontuacao = preferencias.getInteger("maiorPontuação",0); // Obtém a maior pontuação salva nas preferências ou 0 se não houver
+		preferences = Gdx.app.getPreferences("flappyBird");
+		maxScore = preferences.getInteger("maxScore",0);
 
 		camera = new OrthographicCamera();
 		camera.position.set(VIRTUAL_WIDTH/2, VIRTUAL_HEIGHT/2,0);
 		viewport = new StretchViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT, camera);
 	}
-
-	private void verificarEstadoJogo(){
-
-		// Verifica se houve um toque na tela
+	// Verifica o status do jogo.
+	private void verifyGameState(){
+		//Se ele aperta na tela gravidade fica -15 (o que faz ele pular).
 		boolean touchScreen = Gdx.input.justTouched();
-		if( estadoJogo == 0){
-			// Se o estado do jogo for 0 (inicial), verifica se houve toque na tela
-			// Aplica uma gravidade negativa ao passaro, define o estado do jogo como 1 e reproduz um som de voo
+		if( gameState == 0){
 			if( touchScreen){
-				gravidade = -15;
-				estadoJogo = 1;
-				somVoando.play();
+				gravity = -15;
+				gameState = 1;
+				flyingSound.play();
 			}
-		}else if (estadoJogo == 1){
-			// Se o estado do jogo for 1 (jogo em andamento), verifica se houve toque na tela
-			// Aplica uma gravidade negativa ao passaro e reproduz um som de voo
+			//Gameplay de fato.
+		}else if (gameState == 1){
 			if(touchScreen){
-				gravidade = -15;
-				somVoando.play();
+				gravity = -15;
+				flyingSound.play();
 			}
-			// Move a posição horizontal do cano para a esquerda
-			// Verifica se o cano saiu da tela, e se sim, reposiciona-o e redefine a passagem do cano como false
-			posicaoCanoHorizontal -= Gdx.graphics.getDeltaTime() * 200;
-			if( posicaoCanoHorizontal < -canoTopo.getWidth()){
-				posicaoCanoHorizontal = larguraDispositivo;
-				posicaoCanoVertical = random.nextInt(400) - 200;
-				passouCano = false;
+			//Posições dos canos atualizando para ir em direção ao player.
+			positionPipeHorizontal -= Gdx.graphics.getDeltaTime() * 200;
+			positionCoinHorizontal -= Gdx.graphics.getDeltaTime() * 200;
+			if( positionPipeHorizontal < -pipeTopTexture.getWidth()){
+				positionPipeHorizontal = deviceWidth;
+				positionPipeVertical = random.nextInt(400) - 200;
+				pipePassed = false;
 			}
-			// Verifica se o passaro está acima do limite inferior da tela ou se houve toque na tela
-			// Atualiza a posição vertical do passaro com base na gravidade
-			if( posicaoInicialVerticalPassaro > 0 || touchScreen)
-				posicaoInicialVerticalPassaro = posicaoInicialVerticalPassaro - gravidade;
-			gravidade++;
-		}else if( estadoJogo == 2){
-			// Se o estado do jogo for 2 (game over), verifica se a pontuação atual é maior que a maior pontuação registrada
-			// Atualiza a maior pontuação e armazena no SharedPreferences
-			if (pontos> maiorPontuacao){
-				maiorPontuacao = pontos;
-					preferencias.putInteger("maiorPontuação", maiorPontuacao);
-				preferencias.flush();
+			if( positionCoinHorizontal < -coin[0].getWidth()){
+				positionCoinHorizontal = deviceWidth + random.nextInt(Math.round((deviceWidth * .5f)));
+				positionCoinVertical = random.nextInt(Math.round(deviceHeight)) - 200;;
 			}
-			// Reposiciona o passaro para a posição inicial, reseta a pontuação e a gravidade
-			posicaoPassaroHorizontal -= Gdx.graphics.getDeltaTime()*500;;
-
+			if( birdInitialVerticalPosition > 0 || touchScreen)
+				birdInitialVerticalPosition = birdInitialVerticalPosition - gravity;
+			gravity++;
+			//DeathScreen + Score.
+		}else if( gameState == 2){
+			if (points> maxScore){
+				maxScore = points;
+				preferences.putInteger("maxScore", maxScore);
+				preferences.flush();
+			}
+			positionBirdHorizontal -= Gdx.graphics.getDeltaTime()*500;;
+			//Se ele apertar na tela reinicia o jogo mudando o state os points e a gravidade.
 			if(touchScreen){
-				// Verifica se houve toque na tela
-				// Atualiza a posição horizontal do passaro
-				estadoJogo = 0;
-				pontos = 0;
-				gravidade = 0;
-				posicaoPassaroHorizontal = 0;
-				posicaoInicialVerticalPassaro = alturaDispositivo/2;
-				posicaoCanoHorizontal = larguraDispositivo;
+				gameState = 0;
+				points = 0;
+				gravity = 0;
+				positionBirdHorizontal = 0;
+				birdInitialVerticalPosition = deviceHeight/2;
+				positionPipeHorizontal = deviceWidth;
 			}
 		}
 	}
-
-	private void detectarColisoes(){
-		// Define os círculos de colisão para o passaro, cano inferior e cano superior
-		circuloPassaro.set(
-				50 + posicaoPassaroHorizontal + passaros[0].getWidth()/2,
-				posicaoInicialVerticalPassaro + passaros[0].getHeight()/2,
-				passaros[0].getWidth()/2
+	//Detecção de colliders.
+	private void detectCollisions(){
+		birdCircleCollider.set(
+				50 + positionBirdHorizontal + birdArray[0].getWidth()/2,
+				birdInitialVerticalPosition + birdArray[0].getHeight()/2,
+				birdArray[0].getWidth()/2
 		);
-		retanguloCanoBaixo.set(
-				posicaoCanoHorizontal,
-				alturaDispositivo/2 - canoBaixo.getHeight() - espacoEntreCanos / 2 + posicaoCanoVertical,
-				canoBaixo.getWidth(), canoBaixo.getHeight()
+		coinCircleCollider.set(
+				50 + positionCoinHorizontal + coin[0].getWidth()/2,
+				positionCoinVertical + coin[0].getHeight()/2,
+				coin[0].getWidth()/2
 		);
-		retanguloCanoTopo.set(
-				posicaoCanoHorizontal, alturaDispositivo / 2 + espacoEntreCanos / 2 + posicaoCanoVertical,
-				canoTopo.getWidth(), canoTopo.getHeight()
+		rectanglePipeDownCollider.set(
+				positionPipeHorizontal,
+				deviceHeight/2 - pipeDownTexture.getHeight() - spaceBetweenPipes / 2 + positionPipeVertical,
+				pipeDownTexture.getWidth(), pipeDownTexture.getHeight()
 		);
-
-		// Verifica se houve colisão entre o passaro e os canos
-		boolean collidedPipeTop = Intersector.overlaps(circuloPassaro, retanguloCanoTopo);
-		boolean collidedPipeDown = Intersector.overlaps(circuloPassaro, retanguloCanoBaixo);
-
-		// Se houver colisão e o estado do jogo for 1 (jogo em andamento), reproduz som de colisão e muda o estado do jogo para 2 (game over)
+		rectanglePipeTopCollider.set(
+				positionPipeHorizontal, deviceHeight / 2 + spaceBetweenPipes / 2 + positionPipeVertical,
+				pipeTopTexture.getWidth(), pipeTopTexture.getHeight()
+		);
+		randomNum = Math.random();
+		boolean collidedPipeTop = Intersector.overlaps(birdCircleCollider, rectanglePipeTopCollider);
+		boolean collidedPipeDown = Intersector.overlaps(birdCircleCollider, rectanglePipeDownCollider);
+		boolean collidedCoin = Intersector.overlaps(birdCircleCollider, coinCircleCollider);
+		if(collidedCoin){
+			if(coinCurrent == coin[0]){
+				points = points + 10;
+				coinSound.play();
+				if (randomNum < 0.2) { // 20% de chance para o índice 0
+					coinIndex = 0;}
+				else {
+					coinIndex = 1;
+				}
+			}
+			else{
+				points = points + 5;
+				coinSound.play();
+				if (randomNum < 0.2) { // 20% de chance para o índice 0
+					coinIndex = 0;}
+				else {
+					coinIndex = 1;
+				}
+			}
+			positionCoinHorizontal = -deviceHeight;
+		}
 		if (collidedPipeTop || collidedPipeDown){
-			if (estadoJogo == 1){
-				somColisao.play();
-				estadoJogo = 2;
+			if (gameState == 1){
+				collisionSound.play();
+				gameState = 2;
 			}
 		}
 	}
-
-	private void desenharTexturas(){
-		// Define a matriz de projeção da câmera para o batch de desenho
+	//Adiciona as texturas na tela do jogo.
+	private void drawTextures(){
 		batch.setProjectionMatrix(camera.combined);
 		batch.begin();
+		batch.draw(backgroundTexture,0,0,deviceWidth, deviceHeight);
+		batch.draw(birdArray[(int) variation],
+				50 + positionBirdHorizontal, birdInitialVerticalPosition);
+		batch.draw(pipeDownTexture, positionPipeHorizontal,
+				deviceHeight/2 - pipeDownTexture.getHeight() - spaceBetweenPipes/2 + positionPipeVertical);
+		batch.draw(pipeTopTexture, positionPipeHorizontal,
+				deviceHeight/2 + spaceBetweenPipes/2 + positionPipeVertical);
+		scoreText.draw(batch, String.valueOf(points), deviceWidth/2.2f,
+				deviceHeight - 110);
 
-		// Desenha as texturas do fundo, passaro, canos e pontuação
-		batch.draw(fundo,0,0,larguraDispositivo, alturaDispositivo);
-		batch.draw(passaros[(int) variacao],
-				50 + posicaoPassaroHorizontal, posicaoInicialVerticalPassaro);
-		batch.draw(canoBaixo, posicaoCanoHorizontal,
-				alturaDispositivo/2 - canoBaixo.getHeight() - espacoEntreCanos/2 + posicaoCanoVertical);
-		batch.draw(canoTopo, posicaoCanoHorizontal,
-				alturaDispositivo/2 + espacoEntreCanos/2 + posicaoCanoVertical);
-		if ((estadoJogo == 0)){
-			batch.draw(logo, 35, 1000);
+		batch.draw(coin[coinIndex],
+				50 + positionCoinHorizontal, positionCoinVertical);
+		coinCurrent = coin[coinIndex];
+		if(gameState == 2){
+			batch.draw(gameOverPanelTexture, deviceWidth/2 - gameOverPanelTexture.getWidth()/2,
+					deviceHeight/2);
+			restartText.draw(batch,
+					"Toque para reiniciar!", deviceWidth/2 - 140,
+					deviceHeight/2 - gameOverPanelTexture.getHeight()/2);
+			bestScoreText.draw(batch,
+					"Seu recorde é: "+ maxScore + " pontos",
+					deviceWidth/2-140, deviceHeight/2 - gameOverPanelTexture.getHeight());
 		}
-		else {
-			textoPontuacao.draw(batch, String.valueOf(pontos), larguraDispositivo/2 - 35,
-					alturaDispositivo - 80);
-		}
 
-
-
-		// Se o estado do jogo for 2 (game over), desenha as texturas de game over e pontuação recorde
-		if(estadoJogo == 2){
-			batch.draw(gameOver, larguraDispositivo/2 - gameOver.getWidth()/2,
-					alturaDispositivo/2);
-			textoReiniciar.draw(batch,
-					"Toque para reiniciar!", larguraDispositivo/2 - 140,
-					alturaDispositivo/2 - gameOver.getHeight()/2);
-			textoMaiorPontuacao.draw(batch,
-					"Seu recorde é: "+ maiorPontuacao + " pontos",
-					larguraDispositivo/2-140, alturaDispositivo/2 - gameOver.getHeight());
+		if(gameState == 0) {
+			batch.draw(startLogo, deviceWidth/2 - startLogo.getWidth()/2,
+					900);
+			batch.draw(startText, deviceWidth/2 - startText.getWidth()/2,
+					deviceHeight/8);
 		}
 		batch.end();
 	}
-
-	public void validarPontos(){
-		// Verifica se o cano passou da posição do pássaro e se ainda não foi contabilizado o ponto
-		if( posicaoCanoHorizontal < 50-passaros[0].getWidth()){
-			if (!passouCano){
-				pontos++;
-				passouCano = true;
-				somPontuacao.play();
+	//Confere se o player passou os canos se sim toca um som e adiciona os mesmos.
+	public void validatePoints(){
+		if( positionPipeHorizontal < 50-birdArray[0].getWidth()){
+			if (!pipePassed){
+				points++;
+				pipePassed = true;
+				scoreSound.play();
 			}
 		}
 
-		// Atualiza a variável de variação do passaro baseado no tempo de renderização
-		variacao += Gdx.graphics.getDeltaTime() * 10;
+		variation += Gdx.graphics.getDeltaTime() * 10;
 
-		// Reseta a variação do passaro quando ultrapassa o valor máximo de 3
-		if (variacao > 3)
-			variacao = 0;
+		if (variation > 3)
+			variation = 0;
 	}
 
 	@Override
